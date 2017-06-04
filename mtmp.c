@@ -26,7 +26,7 @@ typedef struct wresult {
     int pos;
 } wresult;
 
-int die(char *err, int uinf, int ret) {
+static int die(char *err, int uinf, int ret) {
 
 	if(err[0]) fprintf(stderr, "Error: %s\n", err);
 	exit(ret);
@@ -45,7 +45,7 @@ static size_t wresp(void *ptr, size_t size, size_t nmemb, void *stream) {
     return size * nmemb;
 }
 
-static char *request(const char *url) {
+static char *creq(const char *url) {
 
     CURL *curl = NULL;
     CURLcode status;
@@ -57,14 +57,10 @@ static char *request(const char *url) {
     curl = curl_easy_init();
     if(!curl) die("Could not start curl", O_NOUINF, 1);
 
-    wresult wresult = {
-        .data = data,
-        .pos = 0
-    };
+    wresult wresult = {data, 0};
+    headers = curl_slist_append(headers, "User-Agent: mtmp");
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
-
-    headers = curl_slist_append(headers, "User-Agent: mtmp");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wresp);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &wresult);
@@ -84,10 +80,10 @@ static char *request(const char *url) {
     return data;
 }
 
-char *geoloc(char *ret, size_t len) {
+static char *geoloc(char *ret, size_t len) {
 
 	char *raw;
-	raw = request(LAPIURL);
+	raw = creq(LAPIURL);
 
 	json_t *root;
 	json_error_t err;
@@ -121,9 +117,8 @@ int main(int argc, char **argv) {
 	wtr.loc[0] = toupper(wtr.loc[0]);
 
 	snprintf(url, 256, "%s%s&appid=%s", WAPIURL, wtr.loc, WAPIKEY);
-
-	raw = request(url);
-    if(!raw) die("Could not read data", O_NOUINF, 2);
+	raw = creq(url);
+	if(!raw) die("Could not read data", O_NOUINF, 2);
 
 	root = (json_loads(raw, 0, &err));
 	free(raw);
@@ -132,7 +127,6 @@ int main(int argc, char **argv) {
 	const char *key;
 	json_t *v1, *v2;
 	json_object_foreach(root, key, v1) { if(!strcmp(key, "main")) break; }
-
 	if(!json_is_object(v1)) die("Unexpected JSON format", O_NOUINF, 4);
 
 	json_object_foreach(v1, key, v2) {
