@@ -4,6 +4,11 @@ A minimal cli tool to retrieve current temperature.
 ## Written by
 Björn Westerberg Nauclér (mail@bnaucler.se) 2017
 
+Tested on Arch Linux 4.11 (x86\_64)
+
+## Dependencies
+mtmp requires libjansson and libcurl to compile
+
 ## Installation
 `sudo make all install`
 
