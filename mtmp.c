@@ -7,7 +7,10 @@
 
 #define BUFSZ  8192
 #define LOCLEN  128
+#define URLLEN  256
 #define VALLEN  128
+#define WDIRLEN  4
+#define CCLEN 3
 
 #define LAPIURL "ip-api.com/json"
 #define WAPIURL "api.openweathermap.org/data/2.5/weather?q="
@@ -18,7 +21,11 @@
 
 typedef struct weather {
 	char loc[LOCLEN];
+	char cc[CCLEN];
 	double temp;
+	double ws;
+	int wdir;
+	int hum;
 } weather;
 
 typedef struct wresult {
@@ -82,8 +89,7 @@ static char *creq(const char *url) {
 
 static char *geoloc(char *ret, size_t len) {
 
-	char *raw;
-	raw = creq(LAPIURL);
+	char *raw = creq(LAPIURL);
 
 	json_t *root;
 	json_error_t err;
@@ -101,11 +107,32 @@ static char *geoloc(char *ret, size_t len) {
 	return ret;
 }
 
+char *getwdir(int wdir, char *twdir) {
+
+	if(wdir > 11 && wdir < 34) strncpy(twdir, "NNE", WDIRLEN);
+	else if(wdir < 56) strncpy(twdir, "NE", WDIRLEN);
+	else if(wdir < 79) strncpy(twdir, "ENE", WDIRLEN);
+	else if(wdir < 101) strncpy(twdir, "E", WDIRLEN);
+	else if(wdir < 124) strncpy(twdir, "ESE", WDIRLEN);
+	else if(wdir < 146) strncpy(twdir, "SE", WDIRLEN);
+	else if(wdir < 169) strncpy(twdir, "SSE", WDIRLEN);
+	else if(wdir < 191) strncpy(twdir, "S", WDIRLEN);
+	else if(wdir < 214) strncpy(twdir, "SSW", WDIRLEN);
+	else if(wdir < 236) strncpy(twdir, "SW", WDIRLEN);
+	else if(wdir < 259) strncpy(twdir, "WSW", WDIRLEN);
+	else if(wdir < 281) strncpy(twdir, "W", WDIRLEN);
+	else if(wdir < 304) strncpy(twdir, "WNW", WDIRLEN);
+	else if(wdir < 326) strncpy(twdir, "NW", WDIRLEN);
+	else if(wdir < 349) strncpy(twdir, "NNW", WDIRLEN);
+	else strncpy(twdir, "N", WDIRLEN);
+
+	return twdir;
+}
+
 int main(int argc, char **argv) {
 
-	char url[256];
-	char *raw;
-
+	char url[URLLEN];
+	char twdir[4];
 	weather wtr;
 
 	json_t *root;
@@ -116,24 +143,44 @@ int main(int argc, char **argv) {
 	if(!wtr.loc[0]) die("Could not retrieve geolocation", O_NOUINF, 1);
 	wtr.loc[0] = toupper(wtr.loc[0]);
 
-	snprintf(url, 256, "%s%s&appid=%s", WAPIURL, wtr.loc, WAPIKEY);
-	raw = creq(url);
+	snprintf(url, URLLEN, "%s%s&appid=%s", WAPIURL, wtr.loc, WAPIKEY);
+	char *raw = creq(url);
 	if(!raw) die("Could not read data", O_NOUINF, 2);
 
 	root = (json_loads(raw, 0, &err));
 	free(raw);
 	if(!root) die("JSON decoding failed", O_NOUINF, 3);
 
-	const char *key;
+	const char *k1, *k2;
 	json_t *v1, *v2;
-	json_object_foreach(root, key, v1) { if(!strcmp(key, "main")) break; }
-	if(!json_is_object(v1)) die("Unexpected JSON format", O_NOUINF, 4);
 
-	json_object_foreach(v1, key, v2) {
-		if(!strncmp(key, "temp", VALLEN)) wtr.temp = json_real_value(v2) - 273.15;
+	json_object_foreach(root, k1, v1) { 
+		if(!strcmp(k1, "main")) {
+			if(!json_is_object(v1)) die("Unexpected JSON format", O_NOUINF, 4);
+			json_object_foreach(v1, k2, v2) {
+				if(!strncmp(k2, "temp", VALLEN)) wtr.temp = json_real_value(v2) - 273.15;
+				if(!strncmp(k2, "humidity", VALLEN)) wtr.hum = json_integer_value(v2);
+			}
+		
+		} else if(!strcmp(k1, "wind")) {
+			if(!json_is_object(v1)) die("Unexpected JSON format", O_NOUINF, 4);
+			json_object_foreach(v1, k2, v2) {
+				if(!strncmp(k2, "speed", VALLEN)) wtr.ws = json_real_value(v2);
+				if(!strncmp(k2, "deg", VALLEN)) wtr.wdir = json_integer_value(v2);
+			}
+
+		} else if(!strcmp(k1, "sys")) {
+			if(!json_is_object(v1)) die("Unexpected JSON format", O_NOUINF, 4);
+			json_object_foreach(v1, k2, v2) {
+				if(!strncmp(k2, "country", VALLEN))
+					strcpy(wtr.cc, json_string_value(v2));
+			}
+
+		}
 	}
 
-	printf("Current temperature in %s is %.2fC\n", wtr.loc, wtr.temp);
+	printf("%s, %s: %.1fC, humidity: %d%%, %.1f m/s %s\n",
+			wtr.loc, wtr.cc, wtr.temp, wtr.hum, wtr.ws, getwdir(wtr.wdir, twdir));
 
 	return 0;
 }
