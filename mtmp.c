@@ -129,6 +129,17 @@ char *getwdir(int wdir, char *twdir) {
 	return twdir;
 }
 
+void capfirst(char *str) {
+
+	int scap = 0;
+	char *sptr = str;
+
+	do  {
+		if(!scap++) *sptr = toupper(*sptr);
+		else if (isspace(*sptr)) scap = 0;
+	} while(*++sptr);
+}
+
 int main(int argc, char **argv) {
 
 	char url[URLLEN];
@@ -141,7 +152,7 @@ int main(int argc, char **argv) {
 	if(argc < 2) strncpy(wtr.loc, geoloc(wtr.loc, LOCLEN), LOCLEN);
 	else strncpy(wtr.loc, argv[1], LOCLEN);
 	if(!wtr.loc[0]) die("Could not retrieve geolocation", O_NOUINF, 1);
-	wtr.loc[0] = toupper(wtr.loc[0]);
+	capfirst(wtr.loc);
 
 	snprintf(url, URLLEN, "%s%s&appid=%s", WAPIURL, wtr.loc, WAPIKEY);
 	char *raw = creq(url);
@@ -154,14 +165,14 @@ int main(int argc, char **argv) {
 	const char *k1, *k2;
 	json_t *v1, *v2;
 
-	json_object_foreach(root, k1, v1) { 
+	json_object_foreach(root, k1, v1) {
 		if(!strcmp(k1, "main")) {
 			if(!json_is_object(v1)) die("Unexpected JSON format", O_NOUINF, 4);
 			json_object_foreach(v1, k2, v2) {
 				if(!strncmp(k2, "temp", VALLEN)) wtr.temp = json_real_value(v2) - 273.15;
 				if(!strncmp(k2, "humidity", VALLEN)) wtr.hum = json_integer_value(v2);
 			}
-		
+
 		} else if(!strcmp(k1, "wind")) {
 			if(!json_is_object(v1)) die("Unexpected JSON format", O_NOUINF, 4);
 			json_object_foreach(v1, k2, v2) {
