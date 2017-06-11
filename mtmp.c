@@ -5,35 +5,9 @@
 #include <jansson.h>
 #include <curl/curl.h>
 
-#define BUFSZ  8192
-#define LOCLEN  128
-#define URLLEN  256
-#define VALLEN  128
-#define WDIRLEN  4
-#define CCLEN 3
+#include "mtmp.h"
 
-#define LAPIURL "ip-api.com/json"
-#define WAPIURL "api.openweathermap.org/data/2.5/weather?q="
-#define WAPIKEY "e3153384df37ea0a3a3d51cc5a08d72d"
-
-#define O_NOUINF 0
-#define O_UINF 1
-
-typedef struct weather {
-	char loc[LOCLEN];
-	char cc[CCLEN];
-	double temp;
-	double ws;
-	int wdir;
-	int hum;
-} weather;
-
-typedef struct wresult {
-    char *data;
-    int pos;
-} wresult;
-
-static int die(char *err, int uinf, int ret) {
+int die(char *err, int uinf, int ret) {
 
 	if(err[0]) fprintf(stderr, "Error: %s\n", err);
 	exit(ret);
@@ -87,9 +61,14 @@ static char *creq(const char *url) {
     return data;
 }
 
-static char *geoloc(char *ret, size_t len) {
+static char *geoloc(const char *ip, char *ret, size_t len) {
 
-	char *raw = creq(LAPIURL);
+	char req[URLLEN];
+	char *raw;
+
+	if(!ip[1]) strncpy(req, LAPIURL, URLLEN);
+	else snprintf(req, URLLEN, "%s/%s", LAPIURL, ip);
+	raw = creq(req);
 
 	json_t *root;
 	json_error_t err;
@@ -107,7 +86,7 @@ static char *geoloc(char *ret, size_t len) {
 	return ret;
 }
 
-char *getwdir(int wdir, char *twdir) {
+static char *getwdir(int wdir, char *twdir) {
 
 	if(wdir > 11 && wdir < 34) strncpy(twdir, "NNE", WDIRLEN);
 	else if(wdir < 56) strncpy(twdir, "NE", WDIRLEN);
@@ -129,7 +108,7 @@ char *getwdir(int wdir, char *twdir) {
 	return twdir;
 }
 
-void capfirst(char *str) {
+static void capfirst(char *str) {
 
 	int scap = 0;
 	char *sptr = str;
@@ -140,7 +119,7 @@ void capfirst(char *str) {
 	} while(*++sptr);
 }
 
-int main(int argc, char **argv) {
+char *mtmp(const char *loc, const char *ip, char *ret, const size_t rlen) {
 
 	char url[URLLEN];
 	char twdir[4];
@@ -149,8 +128,10 @@ int main(int argc, char **argv) {
 	json_t *root;
 	json_error_t err;
 
-	if(argc < 2) strncpy(wtr.loc, geoloc(wtr.loc, LOCLEN), LOCLEN);
-	else strncpy(wtr.loc, argv[1], LOCLEN);
+	if(loc[0]) strncpy(wtr.loc, loc, LOCLEN);
+	else if(!ip[0]) die("Could not determine location", O_NOUINF, 8);
+	else strncpy(wtr.loc, geoloc(ip, wtr.loc, LOCLEN), LOCLEN);
+
 	if(!wtr.loc[0]) die("Could not retrieve geolocation", O_NOUINF, 1);
 	capfirst(wtr.loc);
 
@@ -190,8 +171,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	printf("%s, %s: %.1fC, humidity: %d%%, %.1f m/s %s\n",
+	snprintf(ret, rlen, "%s, %s: %.1fC, humidity: %d%%, %.1f m/s %s\n",
 			wtr.loc, wtr.cc, wtr.temp, wtr.hum, wtr.ws, getwdir(wtr.wdir, twdir));
 
-	return 0;
+	return ret;
 }
