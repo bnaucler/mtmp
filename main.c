@@ -5,6 +5,7 @@
 int main(int argc, char **argv) {
 
 	char loc[LOCLEN] = "";
+	char str[WSTRLEN];
 	char *ip = NULL;
 	weather wtr;
 
@@ -12,10 +13,7 @@ int main(int argc, char **argv) {
 	else ip = creq(IPECHO);
 
 	mtmp(loc, ip, &wtr);
-
-	printf("%s, %s: %s %.1fC, humidity: %d%%, %d hPa, %.1f m/s %s\n",
-			wtr.loc, wtr.cc, wtr.desc, wtr.temp, wtr.hum, wtr.pres,
-			wtr.ws, wtr.wdir);
+	puts(mkwstr(&wtr, str, sizeof(str)));
 
 	return 0;
 }
