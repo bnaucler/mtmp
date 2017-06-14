@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
 	else ip = creq(IPECHO);
 
 	mtmp(loc, ip, &wtr);
-	puts(mkwstr(&wtr, str, sizeof(str)));
+	puts(mkwstr(&wtr, str, WSTRLEN));
 
 	return 0;
 }
